@@ -1,0 +1,376 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Hello HomeController!{% endblock %}
+
+{% block body %}
+
+    <form method="POST" id="form">
+        <input type="text" placeholder="username" id="username">
+        <input type="text" placeholder="password" id="password">
+        <input type="submit" id="submit">
+    </form>
+    <div id="notif"></div>
+    <ul id="list"></ul>
+    <div id="btn_wrapper"></div>
+    <div id="wrapper"></div>
+    <div id="wrapper_comment"></div>
+
+    <script>
+        document.getElementById("form").addEventListener('submit', (event) => {
+            event.preventDefault();
+            login()
+        })
+
+        function showConfs(token) {
+            fetch('https://127.0.0.1:8000/api/conferences', {
+                headers: {Authorization: 'Bearer ' + token},
+                method: 'GET',
+            }).then((response) => {
+                if (response.ok) {
+                    response.json().then((confs) => {
+                        console.log("confs", confs["hydra:member"])
+                        document.querySelectorAll("#conf").forEach((elem) => {
+                            elem.remove()
+                        })
+                        let updateActive = false;
+                        let commentActive = false;
+                        for (let i = 0; i < confs["hydra:member"].length; i++) {
+                            let li = document.createElement("li")
+                            li.setAttribute('id', 'conf');
+                            li.innerHTML = (Boolean(confs["hydra:member"][i].isInternational) ? "international" : "Non International")
+                                + " " + confs["hydra:member"][i].year
+                                + " " + confs["hydra:member"][i].city;
+                            commentsId = confs["hydra:member"][i].comment.map(comment => comment.slice(-1))
+                            btnComment = document.createElement("button")
+                            btnComment.innerHTML = "ajouter un commentaire"
+                            btnComment.addEventListener('click', () => {
+                                let data = {
+                                    "city": confs["hydra:member"][i].city,
+                                    "year": confs["hydra:member"][i].year
+                                }
+                                if (commentActive) {
+                                    document.getElementById('formComment').remove()
+                                    commentActive = false
+                                } else {
+                                    createFormComment(data)
+                                    let form = document.getElementById('formComment')
+                                    let submit = document.getElementById('submitComment')
+                                    submit.addEventListener('click', (e) => {
+                                        e.preventDefault()
+                                        createComment(token, confs["hydra:member"][i].id)
+                                        commentActive = false
+                                        notif.innerHTML = "commentaire ajouté";
+                                        notif.style.color = "green";
+                                        setTimeout(() => {
+                                            notif.innerHTML = "";
+                                        }, 2000)
+                                        form.remove()
+                                    })
+                                    commentActive = true
+                                }
+
+                            })
+                            li.appendChild(btnComment)
+                            // success message or error message
+                            let notif = document.getElementById("notif");
+                            // delete button
+                            let del = document.createElement("button");
+                            del.innerHTML = "supprimer";
+                            li.appendChild(del);
+                            document.getElementById('list').appendChild(li);
+                            del.addEventListener('click', () => {
+                                delConf(token, confs["hydra:member"][i].id);
+                                notif.innerHTML = "conférence supprimée";
+                                notif.style.color = "red";
+                                setTimeout(() => {
+                                    notif.innerHTML = "";
+                                    showConfs(token);
+                                }, 2000)
+                            })
+
+                            let btnupdate = document.createElement("button")
+                            btnupdate.innerHTML = "modifier"
+                            li.appendChild(btnupdate)
+                            document.getElementById('list').appendChild(li)
+                            btnupdate.addEventListener('click', () => {
+                                let data = {
+                                    city: confs["hydra:member"][i].city,
+                                    year: confs["hydra:member"][i].year,
+                                    isInternational: confs["hydra:member"][i].isInternational
+                                }
+                                if (updateActive) {
+                                    document.getElementById('formConf').remove()
+                                    updateActive = false
+                                } else {
+                                    createFormConf("Modifier", data)
+                                    let form = document.getElementById('formConf')
+                                    let submit = document.getElementById('submit')
+                                    submit.addEventListener('click', (e) => {
+                                        e.preventDefault()
+                                        updateConf(token, confs["hydra:member"][i].id)
+                                        updateActive = false
+                                        notif.innerHTML = "conférence mise à jour";
+                                        notif.style.color = "green";
+                                        setTimeout(() => {
+                                            notif.innerHTML = "";
+                                        }, 2000)
+                                        form.remove()
+                                    })
+                                    updateActive = true
+                                }
+                            })
+                        }
+                    })
+                }
+            })
+        }
+
+        function createConf(token) {
+
+            let requestInfo = {
+                method: 'POST',
+                body: JSON.stringify({
+                        city: document.getElementById("city").value,
+                        year: document.getElementById("year").value,
+                        isInternational: Boolean(document.getElementById("isInternational").value),
+                    }
+                ),
+                headers: {
+                    Authorization: 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            };
+            fetch('https://127.0.0.1:8000/api/conferences', requestInfo).then((response) => {
+                if (response.ok) {
+                    response.json().then((conf) => {
+                        showConfs(token)
+                    })
+                }
+            }).catch((error) => {
+                console.log('ok')
+            })
+        }
+
+        function showComment(token, id) {
+            fetch('https://127.0.0.1:8000/api/commentaires/' + id, {
+                headers: {Authorization: 'Bearer ' + token},
+                method: 'GET',
+            }).then((response) => {
+                if (response.ok) {
+                    response.json().then((comment) => {
+                        return comment
+                    })
+                }
+            })
+        }
+
+        function createComment(token, id) {
+
+            let requestInfo = {
+                method: 'POST',
+                body: JSON.stringify({
+                        author: document.getElementById("author").value,
+                        text: document.getElementById("text").value,
+                        email: document.getElementById("email").value,
+                        note: parseInt(document.getElementById("note").value),
+                        conference: "/api/conferences/" + id
+                    }
+                ),
+                headers: {
+                    Authorization: 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            };
+            fetch('https://127.0.0.1:8000/api/commentaires', requestInfo).then((response) => {
+                if (response.ok) {
+                    response.json().then((conf) => {
+                        showConfs(token)
+                    })
+                }
+            }).catch((error) => {
+                console.log('ok')
+            })
+        }
+
+        function delConf(token, id) {
+            fetch('https://127.0.0.1:8000/api/conferences/' + id, {
+                headers: {Authorization: 'Bearer ' + token},
+                method: 'DELETE',
+            })
+        }
+
+        function updateConf(token, id) {
+            let requestInfo = {
+                method: 'PUT',
+                body: JSON.stringify({
+                        city: document.getElementById("city").value,
+                        year: document.getElementById("year").value,
+                        isInternational: document.getElementById("isInternational").value ? true : false,
+                    }
+                ),
+                headers: {
+                    Authorization: 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            };
+            fetch('https://127.0.0.1:8000/api/conferences/' + id, requestInfo).then((response) => {
+                if (response.ok) {
+                    response.json().then((conf) => {
+                        showConfs(token)
+                    })
+                }
+            }).catch((error) => {
+                console.log('ok')
+            })
+        }
+
+
+        function login() {
+            let requestInfo = {
+                method: 'POST',
+                body: JSON.stringify({
+                        username: document.getElementById("username").value,
+                        password: document.getElementById("password").value,
+                    }
+                ),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+            fetch('https://127.0.0.1:8000/api/login_check', requestInfo)
+                .then(function (response) {
+                    if (response.ok) {
+                        response.json().then(function (json) {
+                            let token = json.token
+                            let isActive = false
+                            document.getElementById("form").remove()
+                            let div = document.getElementById('btn_wrapper')
+                            let create = document.createElement("button")
+                            create.setAttribute('id', 'create')
+                            create.innerHTML = "Créer une conférence"
+                            div.appendChild(create)
+                            create.addEventListener('click', () => {
+                                if (isActive) {
+                                    document.getElementById('formConf').remove()
+                                    isActive = false
+                                } else {
+                                    createFormConf("Créer")
+                                    let form = document.getElementById('formConf')
+                                    let submit = document.getElementById('submit')
+                                    submit.addEventListener('click', (e) => {
+                                        e.preventDefault()
+                                        createConf(token)
+                                        isActive = false
+                                        form.remove()
+                                    })
+                                    isActive = true
+                                }
+                            })
+                            showConfs(token)
+                        })
+                    } else {
+                        if (response.status === 401) {
+                            console.log(document.getElementById("username").value)
+                            alert('Mauvaise login ou mot de passe');
+                            console.log(requestInfo.body)
+                        } else {
+                            alert("Mauvaise réponse du réseau");
+                        }
+                    }
+                }).catch(
+                function (err) {
+                    alert('error=' + err)
+                }
+            )
+        }
+
+        function createFormConf(choice, data=null) {
+            // form
+            let form = document.createElement("formConf");
+            form.setAttribute('id', 'formConf');
+            // city
+            let city = document.createElement("input");
+            city.setAttribute('type', 'text');
+            city.setAttribute('id', 'city');
+            city.setAttribute('placeholder', 'city');
+            form.appendChild(city);
+            // year
+            let year = document.createElement("input");
+            year.setAttribute('type', 'text');
+            year.setAttribute('id', 'year');
+            year.setAttribute('placeholder', 'year');
+            form.appendChild(year);
+            // isInternational
+            let isInternational = document.createElement("select");
+            isInternational.setAttribute('type', 'select');
+            isInternational.setAttribute('id', 'isInternational');
+            let option1 = document.createElement("option");
+            option1.setAttribute('value', '1');
+            option1.innerHTML = "international"
+            let option2 = document.createElement("option");
+            option2.setAttribute('value', '0');
+            option2.innerHTML = "non international"
+            isInternational.appendChild(option1)
+            isInternational.appendChild(option2)
+            form.appendChild(isInternational);
+            // submit
+            let submit = document.createElement("input");
+            submit.setAttribute('type', 'submit');
+            submit.setAttribute('id', 'submit');
+            form.appendChild(submit);
+            let div = document.getElementById('wrapper')
+            if (choice === "Modifier") {
+                submit.setAttribute('value', 'Modifier');
+            } else if (choice === "Créer") {
+                submit.setAttribute('value', 'Créer');
+            }
+            div.appendChild(form)
+            if (data !== null && choice === "Modifier") {
+                document.getElementById('city').value = data.city
+                document.getElementById('year').value = data.year
+                document.getElementById('isInternational').value = data.isInternational ? "1" : "0"
+            }
+        }
+
+        function createFormComment(data=null) {
+            let div = document.getElementById('wrapper_comment')
+            // form
+            let form = document.createElement("formComment");
+            form.setAttribute('id', 'formComment');
+            // author
+            let author = document.createElement("input");
+            author.setAttribute('type', 'text');
+            author.setAttribute('id', 'author');
+            author.setAttribute('placeholder', 'author');
+            form.appendChild(author);
+            // text input
+            let text = document.createElement("input");
+            text.setAttribute('type', 'text-area');
+            text.setAttribute('id', 'text');
+            text.setAttribute('placeholder', 'text');
+            form.appendChild(text);
+            // email input
+            let email = document.createElement("input");
+            email.setAttribute('type', 'text');
+            email.setAttribute('id', 'email');
+            email.setAttribute('placeholder', 'email');
+            form.appendChild(email);
+            // note input
+            let note = document.createElement("input");
+            note.setAttribute('type', 'number');
+            note.setAttribute('id', 'note');
+            note.setAttribute('placeholder', 'note');
+            form.appendChild(note);
+            // conference text
+            let conference = document.createElement("span");
+            conference.innerHTML = "conference : " + data.city + " " + data.year
+            form.appendChild(conference);
+
+            let submitComment = document.createElement("input");
+            submitComment.setAttribute('type', 'submit');
+            submitComment.setAttribute('id', 'submitComment');
+            form.appendChild(submitComment);
+            div.appendChild(form)
+        }
+    </script>
+{% endblock %}
